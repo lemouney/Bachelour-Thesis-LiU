@@ -1,0 +1,348 @@
+---
+title: "Revisiting The SLOSS Deabte"
+author: "Fruzsina Szentkirályi"
+format: html
+code-fold: true
+code-tools: true
+toc: true
+toc-depth: 4
+toc-expand: 3
+toc-active-border: "#88CCEE"
+editor: visual
+code-block-border-left: "88CCEE"
+code-block-bg: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# Packages and Files
+
+```{r}
+#| message: false
+#| warning: false
+#| code-fold: show
+
+#Packages
+library(tidyverse)
+library(mecobane)
+library(withr)
+library(ggfortify)
+library(viridis)
+
+
+
+#Trophic Food Web
+
+Web<- read_csv("com_Web4.csv", skip = 1) |> #show_col types si to remove message
+  rename("resource" = 'Salt Marsh - California' ) |> 
+  pivot_longer(cols = - resource, 
+               names_to = "consumer", 
+               values_to = "Interaction") |> 
+  filter(Interaction == 1) |> 
+  select(!Interaction)
+
+
+
+#calculate Trophic levels
+TL <- Web |> 
+  trophicLevels()
+
+#Mean trophic level 
+TL |> 
+  mutate(meanTL = mean(trophicLevel))
+
+
+#speciesList
+speciesList <- TL$species
+#Or
+#speciesList <- unique(c(Web$resource, Web$consumer))
+
+```
+
+# Implementing changes/aditions to the mecobane package
+
+```{r}
+#| message: false
+#| warning: false
+#| code-fold: show
+
+#Note that in the mecobane model base extinction probability is called pi, even though it is epsilon in the rapport)  
+#A FUNCTION  FOR PI to DEPEND ON PI0:
+
+
+pi0_dep_pi <- function(patchList, areaList, speciesList, pi0List, xiList = 0.055, kernelList = "Exponential"){
+  
+  patch_area <- tibble(patch = patchList,
+                       area = areaList)
+  
+  species_pi0_xi<- tibble(species = speciesList,
+                          kernel = kernelList,
+                          pi0 = pi0List,
+                          xi = xiList)
+  
+  crossing(species = speciesList,
+           patch = patchList) |>
+    left_join(patch_area, by= join_by(patch)) |>
+    left_join(species_pi0_xi, by = join_by(species)) |>
+    mutate(pi = 1 - (1 - pi0)^ (1/area) )
+}
+
+
+#COMMUNITYTABLE FUNCTION
+#edited function from original to suit purposes of thesis 
+communityTable1 <- function(speciesInputTable, landscapeTable) { colnames(landscapeTable) <- paste0("dim", 1:ncol(landscapeTable))
+landscapeTable <- cbind(data.frame(patch = 1:nrow(landscapeTable)), landscapeTable)
+commTab <- left_join(landscapeTable, speciesInputTable, by= join_by(patch)) #This is the edit: changed this row from a crossing to left_join
+commTab[c("delta", "occupancy", "lambda", "patchValue")] <- NA_real_
+as_tibble(commTab)
+}
+
+
+# Defining the simulation function
+sim_function <- function(pi0, xi, nPatch,totalArea=30) {
+  # Generate the tibble based on vary$pi0, vary$xi and vary$nPatch values
+  
+  patchCoords<- randomCoords(nPatch, dim = 2, digits = 2) |>
+    mutate(patch = c(1:nPatch))
+  
+  Web<- read_csv("com_Web4.csv", skip = 1,
+                 show_col_types = FALSE) |> #show_col types to remove message
+    rename("resource" = 'Salt Marsh - California' ) |> 
+    pivot_longer(cols = - resource, 
+                 names_to = "consumer", 
+                 values_to = "Interaction") |> 
+    filter(Interaction == 1) |> 
+    select(!Interaction)
+  
+  commTab <-  communityTable1(
+    pi0_dep_pi(patchList = patchCoords$patch, 
+               areaList = rep(totalArea/nPatch, times=nPatch),
+               speciesList = unique(c(Web$resource, Web$consumer)),
+               pi0List = pi0,
+               xiList = xi),
+    tibble(dim1 = patchCoords$dim1, dim2 = patchCoords$dim2))
+  
+  # Run the simulation with the generated tibble
+  simMetacomm(commTab= commTab, edgeList = Web,
+              alpha = 1, beta = 1, nReps = 100000 , iter = 5, atol = 1e-10)
+}
+
+#Adjusted sim_function for the Few Large and Close 
+
+
+sim_function2 <- function(pi0, xi, nPatch = 2, totalArea=30) {
+  # Generate the tibble based on vary$pi0, vary$xi and vary$nPatch values
+  
+  patchCoords<- tibble(dim1 = 0, 
+                       dim2 = 0, 
+                       patch = c(1,2))
+  Web<- read_csv("com_Web4.csv", skip = 1,
+                 show_col_types = FALSE) |> #show_col types si to remove message
+    rename("resource" = 'Salt Marsh - California' ) |> 
+    pivot_longer(cols = - resource, 
+                 names_to = "consumer", 
+                 values_to = "Interaction") |> 
+    filter(Interaction == 1) |> 
+    select(!Interaction)
+  
+  commTab <-  communityTable1(
+    pi0_dep_pi(patchList = patchCoords$patch, 
+               areaList = rep(totalArea/nPatch, times=nPatch),
+               speciesList = unique(c(Web$resource, Web$consumer)),
+               pi0List = pi0,
+               xiList = xi),
+    tibble(dim1 = patchCoords$dim1, dim2 = patchCoords$dim2))
+  
+  # Run the simulation with the generated tibble
+  simMetacomm(commTab= commTab, edgeList = Web,
+              alpha = 1, beta = 1, nReps = 100000 , iter = 5, atol = 1e-10)
+}
+
+```
+
+# Simulation
+
+## Scenario 1: Several Small Far Away
+
+```{r}
+#| message: false
+#| warning: false
+#| code-fold: show
+
+## The actual simulation! For severalSmall
+
+#crossing and pmap to make independently varying variables in diff combinations simulated
+
+#defining values for the parameters  in simulation
+vary <- crossing( 
+  pi0 = c(0.055, 0.1, 0.2, 0.3, 0.4, 0.5), 
+  xi = c(0.055, 0.1, 0.2, 0.3, 0.4, 0.5),
+  nPatch = c(50, 100, 200)) |> #make tibble using crossing for the different values for each parameter
+  mutate(rseed=114123+1000*row_number()) #make it reproducible
+
+
+# Apply the simulation function to each combination of pi0 and xi values
+vary |>
+  mutate(rowID = row_number()) |> 
+  mutate(rowID = round(rowID/max(rowID)*100)) |> 
+  mutate(result =
+           pmap(list(pi0, xi, nPatch, rseed, rowID), 
+                \(pi0, xi, nPatch, rseed, rowID)
+                {  cat(rowID, "%\n")
+                  
+                  with_seed(rseed,
+                            sim_function(pi0, xi, nPatch)) 
+                })) |>
+  rename( pi0_ = pi0,
+          xi_ = xi) |>
+  unnest(result) -> Res_SS
+
+Res_SS |> filter(pi0 == 0.055)
+
+Res_SS |>
+  write_csv("Res_SS.csv")
+
+
+
+```
+
+## Scenario 2: Few Large Close Together
+
+```{r}
+#| message: false 
+#| warning: false 
+#| code-fold: show
+
+#parameters
+
+vary2 <- crossing( 
+  pi0 = c(0.055, 0.1, 0.2, 0.3, 0.4, 0.5),
+  xi = c(0.055, 0.1, 0.2, 0.3, 0.4, 0.5),
+  nPatch = 2) |> #make tibble using crossing for the different values for each parameter
+  mutate(rseed=114123+1000*row_number())
+
+#simulation
+vary2 |>
+  mutate(rowID = row_number()) |> 
+  mutate(rowID = round(rowID/max(rowID)*100)) |> 
+  mutate(result =
+           pmap(list(pi0, xi, nPatch, rseed, rowID), 
+                \(pi0, xi, nPatch, rseed, rowID)
+                {  cat(rowID, "%\n")
+                  
+                  with_seed(rseed,
+                            sim_function2(pi0, xi, nPatch)) 
+                })) |>
+  rename( pi0_ = pi0,
+          xi_ = xi) |>
+  unnest(result)-> Res_FL
+
+#Res_FL |> view()
+
+Res_FL |> 
+  write_csv("Res_FL.csv")
+
+```
+
+## How many have lambda \< 1
+
+```{r}
+#| message: false 
+#| warning: false 
+#| code-fold: show
+
+#Several Small
+
+manySmall <- read_csv("Res_SS.csv")
+
+manySmall |>
+  select(! c(pi0_, xi_)) |>
+  group_by(nPatch, pi0, xi, species, rseed) |> #only one lambda for all patchesso eliminating that
+  summarise("Lambda" = mean(lambda)) |>
+  ungroup() |> view() #summarise only to see results clearer
+filter(Lambda < 1)
+
+
+## fewLarge
+fewLarge <- read_csv("Res_FL.csv")
+
+fewLarge |>
+  select(! c(pi0_, xi_)) |>
+  group_by(nPatch, pi0, xi, species, rseed) |> #only one lambda for all patchesso eliminating that
+  summarise("Lambda" = mean(lambda)) |>
+  ungroup() |> #summarise only to see results clearer
+  filter(Lambda < 1)
+
+
+fewLarge |>
+  select(! c(pi0_, xi_)) |>
+  group_by(nPatch, pi0, xi, species, rseed) |> #only one lambda for all patches so      eliminating that
+  summarise("Lambda" = mean(lambda)) |>
+  ungroup() |> 
+  arrange(Lambda, decreasing = FALSE)
+
+
+```
+
+# Data visualization
+
+```{r}
+#| message: false 
+#| warning: false 
+#| code-fold: show
+
+# Data prep for visualisation
+
+manySmall <- read_csv("Res_SS.csv")
+fewLarge <- read_csv("Res_FL.csv")
+
+SLOSS <- manySmall |> 
+  bind_rows(fewLarge, .id = "Source" ) |> 
+  select(! c(pi0_, xi_ )) |>
+  left_join(TL, by = join_by(species)) |> 
+  group_by(nPatch, pi0, xi, 
+           trophicLevel, rseed, Source) |> #only one lambda for across patches of same scenario so eliminating duplicates
+  summarise("Lambda" = mean(lambda)) |>
+  ungroup() |>
+  #For Visulaisation:
+  #mutate(nPatch = ifelse(nPatch == 2 , 1 , nPatch)) |> 
+  mutate(trophicLevel = 
+           round(trophicLevel, 1),
+         Lambda = 
+           ifelse(Lambda < 0.01 , 0.01 , Lambda)) |> 
+ # filter(!pi0 == c(0.1, 0.3, 0.5)) |> 
+ # filter(! xi > 0.2) |> 
+  mutate(nPatch = as_factor(nPatch),
+         trophicLevel = as_factor(trophicLevel), 
+          pi0 = case_when(TRUE ~ paste("ε0 =", pi0)),
+         xi = case_when( TRUE ~ paste("ξ =", xi)) 
+         )
+
+
+#SLOSS |> view()
+
+
+#Visualisation
+
+SLOSS |> 
+  ggplot() +
+  aes(x = nPatch,
+      y = Lambda, 
+      fill = trophicLevel) +
+  geom_jitter(height = 0, #make sure jitter doesnt impact results
+              width = 0.15, 
+              shape = 21,
+              alpha = 0.5)+
+  geom_hline(yintercept = 1.0)+
+  facet_grid(pi0 ~ xi) +
+  scale_y_log10(limits = c(0.01, 300)) + #300 from highest lambda in SLOSS
+  theme_gray() +
+  labs(x = "Number of Patches", 
+       y = "Metapopulation capacity (λ)") +
+  scale_fill_viridis(option = "C", 
+                     discrete = TRUE, 
+                     name = "Trophic Level" )
+             
+
+  ggsave("Plot.png")
+```
