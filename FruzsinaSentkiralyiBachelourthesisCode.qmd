@@ -24,7 +24,7 @@ editor_options:
 
 #Packages
 library(tidyverse)
-library(mecobane)
+library(mecobane)  #The mecobane patch can be accessed from the link in the this repository's README
 library(withr)
 library(ggfortify)
 library(viridis)
@@ -105,7 +105,7 @@ sim_function <- function(pi0, xi, nPatch,totalArea=30) {
   patchCoords<- randomCoords(nPatch, dim = 2, digits = 2) |>
     mutate(patch = c(1:nPatch))
   
-  Web<- read_csv("com_Web4.csv", skip = 1,
+  Web<- read_csv("com_WEB4.csv", skip = 1,
                  show_col_types = FALSE) |> #show_col types to remove message
     rename("resource" = 'Salt Marsh - California' ) |> 
     pivot_longer(cols = - resource, 
@@ -259,7 +259,7 @@ manySmall |>
   select(! c(pi0_, xi_)) |>
   group_by(nPatch, pi0, xi, species, rseed) |> #only one lambda for all patchesso eliminating that
   summarise("Lambda" = mean(lambda)) |>
-  ungroup() |> view() #summarise only to see results clearer
+  ungroup() #summarise only to see results clearer
 filter(Lambda < 1)
 
 
@@ -343,6 +343,4 @@ SLOSS |>
                      discrete = TRUE, 
                      name = "Trophic Level" )
              
-
-  ggsave("Plot.png")
 ```
