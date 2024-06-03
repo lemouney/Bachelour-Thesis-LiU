@@ -33,7 +33,7 @@ library(viridis)
 
 #Trophic Food Web
 
-Web<- read_csv("com_Web4.csv", skip = 1) |> #show_col types si to remove message
+Web<- read_csv("com_WEB4.csv", skip = 1) |> #show_col types si to remove message
   rename("resource" = 'Salt Marsh - California' ) |> 
   pivot_longer(cols = - resource, 
                names_to = "consumer", 
@@ -136,7 +136,7 @@ sim_function2 <- function(pi0, xi, nPatch = 2, totalArea=30) {
   patchCoords<- tibble(dim1 = 0, 
                        dim2 = 0, 
                        patch = c(1,2))
-  Web<- read_csv("com_Web4.csv", skip = 1,
+  Web<- read_csv("com_WEB4.csv", skip = 1,
                  show_col_types = FALSE) |> #show_col types si to remove message
     rename("resource" = 'Salt Marsh - California' ) |> 
     pivot_longer(cols = - resource, 
