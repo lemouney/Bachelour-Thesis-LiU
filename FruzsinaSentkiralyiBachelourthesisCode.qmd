@@ -240,7 +240,7 @@ Res_FL |>
 
 ```
 
-##Overview: How many have lambda \< 1
+##Overview: How many have lambda < 1
 
 ```{r}
 #| message: false 
