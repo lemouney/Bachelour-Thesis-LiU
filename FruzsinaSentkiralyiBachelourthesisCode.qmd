@@ -197,8 +197,6 @@ vary |>
           xi_ = xi) |>
   unnest(result) -> Res_SS
 
-Res_SS |> filter(pi0 == 0.055)
-
 Res_SS |>
   write_csv("Res_SS.csv")
 
@@ -236,8 +234,6 @@ vary2 |>
   rename( pi0_ = pi0,
           xi_ = xi) |>
   unnest(result)-> Res_FL
-
-#Res_FL |> view()
 
 Res_FL |> 
   write_csv("Res_FL.csv")
