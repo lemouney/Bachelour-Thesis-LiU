@@ -244,7 +244,7 @@ Res_FL |>
 
 ```
 
-## How many have lambda \< 1
+##Overview: How many have lambda \< 1
 
 ```{r}
 #| message: false 
@@ -259,7 +259,7 @@ manySmall |>
   select(! c(pi0_, xi_)) |>
   group_by(nPatch, pi0, xi, species, rseed) |> #only one lambda for all patchesso eliminating that
   summarise("Lambda" = mean(lambda)) |>
-  ungroup() #summarise only to see results clearer
+  ungroup()|> #summarise only to see results clearer
 filter(Lambda < 1)
 
 
